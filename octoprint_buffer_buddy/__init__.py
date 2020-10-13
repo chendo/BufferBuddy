@@ -4,8 +4,9 @@ from __future__ import absolute_import
 import octoprint.plugin
 import time
 import re
+from octoprint.events import eventManager, Events
 
-ADVANCED_OK = re.compile(r"ok (N(?P<line>\d+) )?P(?P<planner_buffer_avail>\d+) B(?P<cmd_buffer_avail>\d+)")
+ADVANCED_OK = re.compile(r"ok (N(?P<line>\d+) )?P(?P<planner_buffer_avail>\d+) B(?P<command_buffer_avail>\d+)")
 REPORT_INTERVAL = 2
 
 class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
@@ -21,18 +22,54 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.enabled = False
 		self.enabled_streaming = False
 
-		# TODO: Reset these on new connection by hooking into event bus
-		self.bufsize = 0
+		eventManager().subscribe(Events.CONNECTING, self.on_connecting)
+		eventManager().subscribe(Events.TRANSFER_STARTED, self.on_transfer_started)
+		eventManager().subscribe(Events.PRINT_STARTED, self.on_print_started)
+		eventManager().subscribe(Events.PRINT_DONE, self.on_print_finish)
+		eventManager().subscribe(Events.PRINT_FAILED, self.on_print_finish)
+	
+	def on_connecting(self, event, payload):
+		self._logger.info("connect hook")
+		self.command_buffer_size = 0
+		self.planner_buffer_size = 0
 
-		# TODO: reset these on new prints
+	def on_transfer_started(self, event, payload):
 		self.sd_stream_current_inflight = 0
 
+	def on_print_started(self, event, payload):
+		self.reset_statistics()
+
+	def on_print_finish(self, event, payload):
+		if self.should_report_statistics:
+			self.report_statistics()
+
+	def reset_statistics(self):
+		self.command_underruns = 0
+		self.planner_underruns = 0
+		self.clear_to_sends = 0
+
+	def report_statistics(self):
+
+		message = "Planner underruns: {}\nCommand underruns: {}\nSends triggered: {}".format(self.planner_underruns, self.command_underruns, self.clear_to_sends)
+		self._logger.info(message)
+		toast = {
+			"message_type": "toast",
+			"title": "BufferBuddy statistics",
+			"message": message
+		}
+		self._plugin_manager.send_plugin_message(self._identifier, toast)
+
+	def set_buffer_sizes(self, planner_buffer_size, command_buffer_size):
+		self.planner_buffer_size = planner_buffer_size
+		self.command_buffer_size = command_buffer_size
+		self.max_inflight = command_buffer_size - 1
+		self._logger.info("Detected planner buffer size as {}, command buffer size as {}, setting max_inflight to {}".format(planner_buffer_size, command_buffer_size, self.max_inflight))
 
 	##~~ StartupPlugin mixin
+
 	def on_after_startup(self):
-		self._logger.info("Initialising BufferBuddy")
-		self.set_bufsize(4) # Marlin default is 4
 		self.apply_settings()
+		self._logger.info("BufferBuddy ready")
 
 	##~~ SettingsPlugin mixin
 
@@ -41,6 +78,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			enabled=True,
 			enabled_streaming=True,
 			min_cts_interval=0.1,
+			should_report_statistics=True,
 			sd_stream_max_inflight=40, # Must be safe margin below Octoprint's resend buffer
 		)
 
@@ -53,11 +91,25 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.enabled_streaming = self._settings.get_boolean(["enabled_streaming"])
 		self.min_cts_interval = self._settings.get_float(["min_cts_interval"])
 		self.sd_stream_max_inflight = self._settings.get_float(["sd_stream_max_inflight"])
+		self.should_report_statistics = self._settings.get_boolean(["should_report_statistics"])
 
 	##~~ Core logic
 
 	# Assumptions: This is never called concurrently, and we are free to access anything in comm
 	def gcode_received(self, comm, line, *args, **kwargs):
+		# Try to figure out buffer sizes for underrun detection by looking at the N0 M110 N0 response
+		# Important: This runs before on_after_startup
+		if self.planner_buffer_size == 0 and "ok N0 " in line:
+			matches = ADVANCED_OK.search(line)
+			if matches:
+				# ok output always returns BLOCK_BUFFER_SIZE - 1 due to 
+				#     FORCE_INLINE static uint8_t moves_free() { return BLOCK_BUFFER_SIZE - 1 - movesplanned(); }
+				# for whatever reason
+				planner_buffer_size = int(matches.group('planner_buffer_avail')) + 1
+				# We add +1 here as ok will always return BUFSIZE-1 as we've just sent it a command
+				command_buffer_size = int(matches.group('command_buffer_avail')) + 1
+				self.set_buffer_sizes(planner_buffer_size, command_buffer_size)
+
 		if not self.enabled:
 			return line
 
@@ -90,23 +142,25 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				
 			ok_line_number = int(matches.group('line'))
 			current_line_number = comm._current_line
-			buffer_avail = int(matches.group('cmd_buffer_avail'))
+			command_buffer_avail = int(matches.group('command_buffer_avail'))
+			planner_buffer_avail = int(matches.group('planner_buffer_avail'))
 			inflight = current_line_number - ok_line_number
 			queue_size = comm._send_queue._qsize()
-
-			# If we see the printer report it has more buffers than we think it has, increase it accordingly
-			if buffer_avail + 1 > self.bufsize: 
-				# On an empty cmd buffer, buffer_avail will be BUFSIZE-1
-				# TODO: verify that this is always the case.. somehow
-				self.set_bufsize(buffer_avail + 1)
 
 			should_report = False
 			should_send = False
 
+			# detect underruns
+			if command_buffer_avail == self.command_buffer_size - 1:
+				self.command_underruns += 1
+
+			if planner_buffer_avail == self.planner_buffer_size - 1:
+				self.planner_underruns += 1
+
 			if (time.time() - self.last_report) > REPORT_INTERVAL:
 				should_report = True
 
-			if buffer_avail > 1:
+			if command_buffer_avail > 1: # aim to keep at least one spot free
 				if comm.isStreaming() and inflight < self.sd_stream_max_inflight:
 					self.sd_stream_current_inflight += 1
 					should_send = True
@@ -122,20 +176,15 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				self._logger.debug("detected available command buffer, triggering a send")
 				# this enables the send loop to send if it's waiting
 				comm._clear_to_send.set() # Is there a point calling this if _clear_to_send is at max?
+				self.clear_to_sends += 1
 				self.last_cts = time.time()
 				should_report = True
 
 			if should_report:
-				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
+				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
 				self.last_report = time.time()
 
 		return line
-
-	# TODO: we should reset on disconnect in case it's a different printer or BUFSIZE changes
-	def set_bufsize(self, bufsize):
-		self.bufsize = bufsize
-		self.max_inflight = bufsize - 1
-		self._logger.info("Setting BUFSIZE to {} and MAX_INFLIGHT to {}".format(self.bufsize, self.max_inflight))
 
 	##~~ AssetPlugin mixin
 
