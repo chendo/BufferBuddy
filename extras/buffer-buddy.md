@@ -8,11 +8,11 @@ author: chendo
 license: AGPLv3
 
 # TODO
-date: today's date in format YYYY-MM-DD, e.g. 2015-04-21
+date: 2020-10-13
 
 homepage: https://github.com/chendo/BufferBuddy
 source: https://github.com/chendo/BufferBuddy
-archive: https://github.com/chendo/BufferBuddy/archive/master.zip
+archive: https://github.com/chendo/BufferBuddy/archive/main.zip
 
 # TODO
 # Set this to true if your plugin uses the dependency_links setup parameter to include
@@ -58,7 +58,7 @@ compatibility:
   # OctoPrint versions being supported.
 
   octoprint:
-  - 1.2.0
+  - 1.4.2
 
   # List of compatible operating systems
   #
