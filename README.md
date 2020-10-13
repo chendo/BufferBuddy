@@ -53,12 +53,13 @@ It cannot make your printer process more commands than the processor is capable 
 ## Requirements
 
 * Marlin 2.x, with `ADVANCED_OK` support.
-    * It's important that you also change `TX_BUFFER_SIZE` or `USART_TX_BUF_SIZE` depending on your configuration as `ADVANCED_OK` sends more data.
+    * It's important that you also change `TX_BUFFER_SIZE` or `USART_TX_BUF_SIZE` depending on your configuration to at least `32` as `ADVANCED_OK` sends more data.
+    * This plugin is more effective with a higher `BUFSIZE`. The default of `4` is generally not enough for this plugin to be useful.
 * Octoprint's `ok buffer size` option to be changed to at least `2`
 
 ## Tested with
 
-This plugin has only been tested with my Ender 3 v2 running [Smith3D's Marlin fork](https://github.com/smith3d/Marlin/tree/bugfix-2.0.x-Smith3D) which includes improvements specifically for the Ender 3 v2, but should work for any Marlin 2.x firmware.
+This plugin has only been tested with my Ender 3 v2 running [Smith3D's Marlin fork](https://github.com/smith3d/Marlin/tree/bugfix-2.0.x-Smith3D) which includes improvements specifically for the Ender 3 v2, but should work for any Marlin 2.x firmware with the appropriate configuration.
 
 If you have had success with other printers, please send a pull request and add the details below.
 
