@@ -35,6 +35,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 
 	def on_transfer_started(self, event, payload):
 		self.sd_stream_current_inflight = 0
+		self.reset_statistics()
 
 	def on_print_started(self, event, payload):
 		self.reset_statistics()
@@ -47,9 +48,9 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.command_underruns = 0
 		self.planner_underruns = 0
 		self.clear_to_sends = 0
+		self.did_resend = False
 
 	def report_statistics(self):
-
 		message = "Planner underruns: {}\nCommand underruns: {}\nSends triggered: {}".format(self.planner_underruns, self.command_underruns, self.clear_to_sends)
 		self._logger.info(message)
 		toast = {
@@ -79,7 +80,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			enabled_streaming=True,
 			min_cts_interval=0.1,
 			should_report_statistics=True,
-			sd_stream_max_inflight=40, # Must be safe margin below Octoprint's resend buffer
+			sd_max_inflight=40, # Must be safe margin below Octoprint's resend buffer
 		)
 
 	def on_settings_save(self, data):
@@ -96,6 +97,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	##~~ Core logic
 
 	# Assumptions: This is never called concurrently, and we are free to access anything in comm
+	# FIXME: Octoprint considers the job finished when the last line is sent, even when there are lines inflight
 	def gcode_received(self, comm, line, *args, **kwargs):
 		# Try to figure out buffer sizes for underrun detection by looking at the N0 M110 N0 response
 		# Important: This runs before on_after_startup
@@ -110,9 +112,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				command_buffer_size = int(matches.group('command_buffer_avail')) + 1
 				self.set_buffer_sizes(planner_buffer_size, command_buffer_size)
 
-		if not self.enabled:
-			return line
-
 		# We don't want to run unless we're printing.
 		if not comm.isPrinting():
 			return line
@@ -122,17 +121,23 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				return line
 
 			if comm._resendActive:
-				self._logger.warn("resend detected")
+				# self._logger.warn("resend detected")
+				self.did_resend = True
 
 				# FIXME: This logic needs to be verified
 				if self.sd_stream_max_inflight > self.sd_stream_current_inflight:
 					self._logger.warn("Had {} lines inflight before error, setting sd stream max to {}".format(self.sd_stream_current_inflight, self.sd_stream_max_inflight - 10))
 					self.sd_stream_max_inflight = self.sd_stream_current_inflight - 10 # to be safe
 					self.sd_stream_current_inflight = 0
+			elif self.did_resend: # Once resend is over, scale back max_inflight a bit
+				self.sd_stream_max_inflight -= 1
+				self.did_resend = False
+
 			
 		# Don't do anything fancy when we're in a middle of a resend
 		if comm._resendActive:
 			return line
+
 
 		if "ok " in line:
 			matches = ADVANCED_OK.search(line)
@@ -162,12 +167,10 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 
 			if command_buffer_avail > 1: # aim to keep at least one spot free
 				if comm.isStreaming() and inflight < self.sd_stream_max_inflight:
-					self.sd_stream_current_inflight += 1
-					should_send = True
-				elif inflight < self.max_inflight and (comm.isSdPrinting() or (time.time() - self.last_cts) > self.min_cts_interval):
+				if inflight < self.max_inflight and (time.time() - self.last_cts) > self.min_cts_interval:
 					should_send = True
 
-			if should_send:
+			if should_send and self.enabled:
 				# If the command queue is empty, triggering clear_to_send won't do anything
 				# so we try to make sure something's in there
 				if queue_size == 0: 
