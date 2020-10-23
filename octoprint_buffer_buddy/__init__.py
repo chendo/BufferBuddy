@@ -187,12 +187,13 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					self._logger.warn("swallowing ok to decrease inflight, line: {}".format(line))
 					return None # eat the ok line so Octoprint doesn't send another command
 
-			# detect underruns
-			if command_buffer_avail == self.command_buffer_size - 1:
-				self.command_underruns_detected += 1
+			# detect underruns if printing
+			if not comm.isStreaming():
+				if command_buffer_avail == self.command_buffer_size - 1:
+					self.command_underruns_detected += 1
 
-			if planner_buffer_avail == self.planner_buffer_size - 1:
-				self.planner_underruns_detected += 1
+				if planner_buffer_avail == self.planner_buffer_size - 1:
+					self.planner_underruns_detected += 1
 
 			if (time.time() - self.last_report) > REPORT_INTERVAL:
 				should_report = True
