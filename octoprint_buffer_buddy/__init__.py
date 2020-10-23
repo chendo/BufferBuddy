@@ -25,7 +25,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.last_report = 0
 		
 		self.enabled = False
-		self.enabled_streaming = False
 
 		self.state = 'ready'
 
@@ -47,7 +46,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.planner_buffer_size = 0
 
 	def on_transfer_started(self, event, payload):
-		self.sd_stream_current_inflight = 0
 		self.reset_statistics()
 		self.state = 'transferring'
 		self.send_plugin_state()
@@ -99,10 +97,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 
 	def apply_settings(self):
 		self.enabled = self._settings.get_boolean(["enabled"])
-		self.enabled_streaming = self._settings.get_boolean(["enabled_streaming"])
 		self.min_cts_interval = self._settings.get_float(["min_cts_interval"])
-		self.sd_stream_inflight_target = self._settings.get_float(["sd_stream_inflight_target"])
-		self.should_report_statistics = self._settings.get_boolean(["should_report_statistics"])
 
 	##~~ Frontend stuff
 	def send_message(self, type, message):
@@ -152,10 +147,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				self.set_buffer_sizes(planner_buffer_size, command_buffer_size)
 				self.set_status('Buffer sizes detected')
 
-		if comm.isStreaming():
-			if not self.enabled_streaming:
-				return line
-
 		if self.did_resend and not comm._resendActive:
 			self.did_resend = False
 			self.set_status('Resend over, resuming...')
@@ -177,7 +168,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			should_send = False
 
 			# If we're in a resend state, try to lower inflight commands by consuming ok's
-			if comm._resendActive:
+			if comm._resendActive and self.enabled:
 				if not self.did_resend:
 					self.resends_detected += 1
 					self.did_resend = True
@@ -203,6 +194,11 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					should_send = True
 
 			if should_send and self.enabled:
+				# Ensure _clear_to_send._max is at least 2, otherwise triggering _clear_to_send won't do anything
+				if comm._clear_to_send._max < 2:
+					self._logger.warn("setting 'ok buffer size' / comm._clear_to_send._max to 2 cause plugin doesn't work at 1")
+					comm._clear_to_send._max = 2
+
 				# If the command queue is empty, triggering clear_to_send won't do anything
 				# so we try to make sure something's in there
 				if queue_size == 0: 
