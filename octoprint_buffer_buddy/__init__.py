@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 import octoprint.plugin
+from octoprint.util import monotonic_time
 import time
 import re
 import flask
@@ -173,10 +174,12 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					self.resends_detected += 1
 					self.did_resend = True
 					self.set_status('Resend detected, backing off')
-				self.last_cts = time.time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
-				if inflight > 1:
-					self._logger.warn("swallowing ok to decrease inflight, line: {}".format(line))
-					return None # eat the ok line so Octoprint doesn't send another command
+				self.last_cts = monotonic_time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
+				if inflight > 4:
+					self._logger.warn("using a clear to decrease inflight, inflight: {}, line: {}".format(inflight, line))
+					# comm._clear_to_send.clear() # Clear completely to try to reset
+					comm._ok_timeout = monotonic_time() + 0.05 # Reduce the timeout in case we eat too many OKs
+					return None
 
 			# detect underruns if printing
 			if not comm.isStreaming():
@@ -186,11 +189,11 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				if planner_buffer_avail == self.planner_buffer_size - 1:
 					self.planner_underruns_detected += 1
 
-			if (time.time() - self.last_report) > REPORT_INTERVAL:
+			if (monotonic_time() - self.last_report) > REPORT_INTERVAL:
 				should_report = True
 
 			if command_buffer_avail > 1: # aim to keep at least one spot free
-				if inflight < self.inflight_target and (time.time() - self.last_cts) > self.min_cts_interval:
+				if inflight < self.inflight_target and (monotonic_time() - self.last_cts) > self.min_cts_interval:
 					should_send = True
 
 			if should_send and self.enabled:
@@ -208,7 +211,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				# this enables the send loop to send if it's waiting
 				comm._clear_to_send.set() # Is there a point calling this if _clear_to_send is at max?
 				self.clear_to_sends_triggered += 1
-				self.last_cts = time.time()
+				self.last_cts = monotonic_time()
 				should_report = True
 
 			if should_report:
@@ -225,7 +228,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					"send_queue_size": queue_size,
 				})
 				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
-				self.last_report = time.time()
+				self.last_report = monotonic_time()
 				self.set_status('Monitoring')
 
 		return line
