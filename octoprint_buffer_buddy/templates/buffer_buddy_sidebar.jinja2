@@ -1,4 +1,4 @@
-Status: <strong data-bind="text: status">Initialising...</strong> <span data-bind="text: state">_</span>
+Status: <strong data-bind="text: status">Initialising...</strong> <span data-bind="visible: !enabled()">(disabled)</span>
 <br />
 Line: <strong><span data-bind="text: currentLineNumber">_</span> sent / <span data-bind="text: ackedLineNumber">_</span> acked</strong>
 <br />
