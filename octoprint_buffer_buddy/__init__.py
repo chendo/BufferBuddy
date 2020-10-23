@@ -27,10 +27,14 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.enabled = False
 		self.enabled_streaming = False
 
+		self.state = 'ready'
+
 		self.min_cts_interval = 1.0 
 
 		eventManager().subscribe(Events.CONNECTING, self.on_connecting)
 		eventManager().subscribe(Events.TRANSFER_STARTED, self.on_transfer_started)
+		eventManager().subscribe(Events.TRANSFER_DONE, self.on_print_finish)
+		eventManager().subscribe(Events.TRANSFER_FAILED, self.on_print_finish)
 		eventManager().subscribe(Events.PRINT_STARTED, self.on_print_started)
 		eventManager().subscribe(Events.PRINT_DONE, self.on_print_finish)
 		eventManager().subscribe(Events.PRINT_FAILED, self.on_print_finish)
@@ -45,13 +49,18 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def on_transfer_started(self, event, payload):
 		self.sd_stream_current_inflight = 0
 		self.reset_statistics()
+		self.state = 'transferring'
+		self.send_plugin_state()
 
 	def on_print_started(self, event, payload):
 		self.reset_statistics()
+		self.state = 'printing'
+		self.send_plugin_state()
 
 	def on_print_finish(self, event, payload):
-		if self.should_report_statistics:
-			return None
+		self.set_status('Ready')
+		self.state = 'ready'
+		self.send_plugin_state()
 
 	def reset_statistics(self):
 		self.command_underruns_detected = 0
@@ -65,14 +74,8 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.command_buffer_size = command_buffer_size
 		self.inflight_target = min(command_buffer_size - 1, INFLIGHT_TARGET_MAX)
 		self._logger.info("Detected planner buffer size as {}, command buffer size as {}, setting inflight_target to {}".format(planner_buffer_size, command_buffer_size, self.inflight_target))
-		self.send_message("config", self.plugin_config())
+		self.send_plugin_state()
 
-	def plugin_config(self):
-		return {
-			"planner_buffer_size": self.planner_buffer_size,
-			"command_buffer_size": self.command_buffer_size,
-			"inflight_target": self.inflight_target,
-		}
 
 	##~~ StartupPlugin mixin
 
@@ -88,7 +91,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			enabled_streaming=True,
 			min_cts_interval=0.1,
 			should_report_statistics=True,
-			sd_inflight_target=40, # Must be safe margin below Octoprint's resend buffer
 		)
 
 	def on_settings_save(self, data):
@@ -106,8 +108,23 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def send_message(self, type, message):
 		self._plugin_manager.send_plugin_message(self._identifier, {"type": type, "message": message})
 
+	def set_status(self, message):
+		self.send_message("status", message)
+
+	def send_plugin_state(self):
+		self.send_message("state", self.plugin_state())
+
+	def plugin_state(self):
+		return {
+			"planner_buffer_size": self.planner_buffer_size,
+			"command_buffer_size": self.command_buffer_size,
+			"inflight_target": self.inflight_target,
+			"state": self.state,
+			"enabled": self.enabled,
+		}
+
 	def on_api_get(self, request):
-		return flask.jsonify(config=self.plugin_config())
+		return flask.jsonify(state=self.plugin_state())
 
 	def get_api_commands(self):
 		return dict(clear=[])
@@ -133,23 +150,15 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				# We add +1 here as ok will always return BUFSIZE-1 as we've just sent it a command
 				command_buffer_size = int(matches.group('command_buffer_avail')) + 1
 				self.set_buffer_sizes(planner_buffer_size, command_buffer_size)
-				self.send_message('status', 'Buffer sizes detected')
+				self.set_status('Buffer sizes detected')
 
 		if comm.isStreaming():
 			if not self.enabled_streaming:
 				return line
 
-				# FIXME: This logic needs to be verified
-				if self.sd_stream_inflight_target > self.sd_stream_current_inflight:
-					self._logger.warn("Had {} lines inflight before error, setting sd stream max to {}".format(self.sd_stream_current_inflight, self.sd_stream_inflight_target - 10))
-					self.sd_stream_inflight_target = self.sd_stream_current_inflight - 10 # to be safe
-					self.sd_stream_current_inflight = 0
-			elif self.did_resend: # Once resend is over, scale back inflight_target a bit
-				self.sd_stream_inflight_target -= 1		
-
 		if self.did_resend and not comm._resendActive:
 			self.did_resend = False
-			self.send_message('status', 'Resend over, resuming...')
+			self.set_status('Resend over, resuming...')
 
 		if "ok " in line:
 			matches = ADVANCED_OK.search(line)
@@ -172,7 +181,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				if not self.did_resend:
 					self.resends_detected += 1
 					self.did_resend = True
-					self.send_message('status', 'Resend detected, backing off')
+					self.set_status('Resend detected, backing off')
 				self.last_cts = time.time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
 				if inflight > 1:
 					self._logger.warn("swallowing ok to decrease inflight, line: {}".format(line))
@@ -189,8 +198,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				should_report = True
 
 			if command_buffer_avail > 1: # aim to keep at least one spot free
-				if comm.isStreaming() and inflight < self.sd_stream_inflight_target:
-					should_send = True
 				if inflight < self.inflight_target and (time.time() - self.last_cts) > self.min_cts_interval:
 					should_send = True
 
@@ -222,7 +229,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				})
 				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
 				self.last_report = time.time()
-				self.send_message('status', 'Monitoring')
+				self.set_status('Monitoring')
 
 		return line
 

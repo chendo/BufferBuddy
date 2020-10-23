@@ -14,6 +14,8 @@ $(function() {
         // TODO: Implement your plugin's view model here.
 
         self.status = ko.observable('Ready')
+        self.state = ko.observable('ready')
+        self.enabled = ko.observable(false)
 
         self.plannerBufferSize = ko.observable('?')
         self.commandBufferSize = ko.observable('?')
@@ -53,10 +55,10 @@ $(function() {
                 self.inflight(message.inflight.toString())
                 self.resendsDetected(message.resends_detected.toString())
                 self.sendQueueSize(message.send_queue_size.toString())
-            }
-
-            if (type == 'status') { 
+            } else if (type == 'status') { 
                 self.status(message)
+            } else if (type ==  'state') {
+                self.setState(message)
             }
         }
 
@@ -66,10 +68,12 @@ $(function() {
         }
 
         self.fromResponse = function (response) {
-            self.config(response.config)
+            self.setState(response.state)
         }
 
-        self.config = function (config) {
+        self.setState = function (config) {
+            self.enabled(config.enabled)
+            self.state(config.state)
             self.plannerBufferSize(config.planner_buffer_size.toString())
             self.commandBufferSize(config.command_buffer_size.toString())
             self.inflightTarget(config.inflight_target.toString())
