@@ -13,6 +13,8 @@ $(function() {
 
         // TODO: Implement your plugin's view model here.
 
+        self.status = ko.observable('Ready')
+
         self.plannerBufferSize = ko.observable('?')
         self.commandBufferSize = ko.observable('?')
         self.inflightTarget       = ko.observable('?')
@@ -24,6 +26,8 @@ $(function() {
         self.plannerUnderrunsDetected = ko.observable('?')
         self.ctsTriggered = ko.observable('?')
 
+        self.currentLineNumber = ko.observable('?')
+        self.ackedLineNumber = ko.observable('?')
         self.inflight = ko.observable('?')
         self.resendsDetected = ko.observable('?')
         self.sendQueueSize = ko.observable('?')
@@ -44,9 +48,15 @@ $(function() {
                 self.plannerUnderrunsDetected(message.planner_underruns_detected.toString())
                 self.ctsTriggered(message.cts_triggered.toString())
         
+                self.currentLineNumber(message.current_line_number.toString())
+                self.ackedLineNumber(message.acked_line_number.toString())
                 self.inflight(message.inflight.toString())
                 self.resendsDetected(message.resends_detected.toString())
                 self.sendQueueSize(message.send_queue_size.toString())
+            }
+
+            if (type == 'status') { 
+                self.status(message)
             }
         }
 

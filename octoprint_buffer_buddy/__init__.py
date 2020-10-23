@@ -8,8 +8,9 @@ import flask
 from octoprint.events import eventManager, Events
 
 ADVANCED_OK = re.compile(r"ok (N(?P<line>\d+) )?P(?P<planner_buffer_avail>\d+) B(?P<command_buffer_avail>\d+)")
-REPORT_INTERVAL = 2
-
+REPORT_INTERVAL = 1 # seconds
+POST_RESEND_WAIT = 2 # seconds
+INFLIGHT_TARGET_MAX = 45 # Octoprint has a hard limit of 50 entries in the buffer for resends so it must be less than that, with a buffer
 
 class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 						octoprint.plugin.AssetPlugin,
@@ -62,7 +63,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def set_buffer_sizes(self, planner_buffer_size, command_buffer_size):
 		self.planner_buffer_size = planner_buffer_size
 		self.command_buffer_size = command_buffer_size
-		self.inflight_target = command_buffer_size - 1
+		self.inflight_target = min(command_buffer_size - 1, INFLIGHT_TARGET_MAX)
 		self._logger.info("Detected planner buffer size as {}, command buffer size as {}, setting inflight_target to {}".format(planner_buffer_size, command_buffer_size, self.inflight_target))
 		self.send_message("config", self.plugin_config())
 
@@ -112,10 +113,8 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		return dict(clear=[])
 
 	def on_api_command(self, command, data):
-		if command == "clear":
-			if not Permissions.PLUGIN_ACTION_COMMAND_NOTIFICATION_CLEAR.can():
-				return flask.abort(403, "Insufficient permissions")
-			self._clear_notifications()		
+		# No commands yet
+		return None
 
 	##~~ Core logic
 
@@ -134,6 +133,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				# We add +1 here as ok will always return BUFSIZE-1 as we've just sent it a command
 				command_buffer_size = int(matches.group('command_buffer_avail')) + 1
 				self.set_buffer_sizes(planner_buffer_size, command_buffer_size)
+				self.send_message('status', 'Buffer sizes detected')
 
 		if comm.isStreaming():
 			if not self.enabled_streaming:
@@ -147,9 +147,9 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			elif self.did_resend: # Once resend is over, scale back inflight_target a bit
 				self.sd_stream_inflight_target -= 1		
 
-		if self.did_resend:
-			self.resends_detected += 1
+		if self.did_resend and not comm._resendActive:
 			self.did_resend = False
+			self.send_message('status', 'Resend over, resuming...')
 
 		if "ok " in line:
 			matches = ADVANCED_OK.search(line)
@@ -169,9 +169,13 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 
 			# If we're in a resend state, try to lower inflight commands by consuming ok's
 			if comm._resendActive:
-				self.did_resend = True
-				self.last_cts = time.time() + 5 # Hack to delay CTS by 5s after resend event
+				if not self.did_resend:
+					self.resends_detected += 1
+					self.did_resend = True
+					self.send_message('status', 'Resend detected, backing off')
+				self.last_cts = time.time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
 				if inflight > 1:
+					self._logger.warn("swallowing ok to decrease inflight, line: {}".format(line))
 					return None # eat the ok line so Octoprint doesn't send another command
 
 			# detect underruns
@@ -205,6 +209,8 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 
 			if should_report:
 				self.send_message("update", {
+					"current_line_number": current_line_number,
+					"acked_line_number": ok_line_number,
 					"inflight": inflight,
 					"planner_buffer_avail": planner_buffer_avail,
 					"command_buffer_avail": command_buffer_avail,
@@ -216,6 +222,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				})
 				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
 				self.last_report = time.time()
+				self.send_message('status', 'Monitoring')
 
 		return line
 
