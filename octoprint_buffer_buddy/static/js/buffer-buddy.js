@@ -15,7 +15,7 @@ $(function() {
 
         self.plannerBufferSize = ko.observable('?')
         self.commandBufferSize = ko.observable('?')
-        self.maxInflight       = ko.observable('?')
+        self.inflightTarget       = ko.observable('?')
 
         self.commandBufferAvail = ko.observable('?')
         self.commandUnderrunsDetected = ko.observable('?')
@@ -62,7 +62,7 @@ $(function() {
         self.config = function (config) {
             self.plannerBufferSize(config.planner_buffer_size.toString())
             self.commandBufferSize(config.command_buffer_size.toString())
-            self.maxInflight(config.max_inflight.toString())
+            self.inflightTarget(config.inflight_target.toString())
         }
 
         self.get = function () {
