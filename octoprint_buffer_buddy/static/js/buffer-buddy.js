@@ -9,10 +9,70 @@ $(function() {
         var self = this;
 
         // assign the injected parameters, e.g.:
-        // self.loginStateViewModel = parameters[0];
-        // self.settingsViewModel = parameters[1];
+        self.settingsViewModel = parameters[0];
 
         // TODO: Implement your plugin's view model here.
+
+        self.plannerBufferSize = ko.observable('?')
+        self.commandBufferSize = ko.observable('?')
+        self.maxInflight       = ko.observable('?')
+
+        self.commandBufferAvail = ko.observable('?')
+        self.commandUnderrunsDetected = ko.observable('?')
+
+        self.plannerBufferAvail = ko.observable('?')
+        self.plannerUnderrunsDetected = ko.observable('?')
+        self.ctsTriggered = ko.observable('?')
+
+        self.inflight = ko.observable('?')
+        self.resendsDetected = ko.observable('?')
+        self.sendQueueSize = ko.observable('?')
+
+        self.onDataUpdaterPluginMessage = function (plugin, data) {
+            if (plugin !== "buffer_buddy") {
+                return;
+            }
+            
+            var type = data.type
+            var message = data.message
+
+            if (type == 'update') {
+                self.commandBufferAvail(message.command_buffer_avail.toString())
+                self.commandUnderrunsDetected(message.command_underruns_detected.toString())
+        
+                self.plannerBufferAvail(message.planner_buffer_avail.toString())
+                self.plannerUnderrunsDetected(message.planner_underruns_detected.toString())
+                self.ctsTriggered(message.cts_triggered.toString())
+        
+                self.inflight(message.inflight.toString())
+                self.resendsDetected(message.resends_detected.toString())
+                self.sendQueueSize(message.send_queue_size.toString())
+            }
+        }
+
+        self.requestData = function () {
+            self.get()
+                .done(self.fromResponse)
+        }
+
+        self.fromResponse = function (response) {
+            self.config(response.config)
+        }
+
+        self.config = function (config) {
+            self.plannerBufferSize(config.planner_buffer_size.toString())
+            self.commandBufferSize(config.command_buffer_size.toString())
+            self.maxInflight(config.max_inflight.toString())
+        }
+
+        self.get = function () {
+            return OctoPrint.plugins.base.get(OctoPrint.plugins.base.getSimpleApiUrl("buffer_buddy"))
+        }
+
+        self.onStartup = self.onUserLoggedIn = self.onUserLoggedOut = function() {
+            window.buffer_buddy = self
+            self.requestData()
+        }
     }
 
     /* view model class, parameters for constructor, container to bind to
@@ -22,8 +82,8 @@ $(function() {
     OCTOPRINT_VIEWMODELS.push({
         construct: BufferBuddyViewModel,
         // ViewModels your plugin depends on, e.g. loginStateViewModel, settingsViewModel, ...
-        dependencies: [ /* "loginStateViewModel", "settingsViewModel" */ ],
+        dependencies: [ "settingsViewModel" ],
         // Elements to bind to, e.g. #settings_plugin_buffer-buddy, #tab_plugin_buffer-buddy, ...
-        elements: [ /* ... */ ]
+        elements: [ "#sidebar_plugin_buffer_buddy", /* ... */ ]
     });
 });
