@@ -82,11 +82,10 @@ $(function() {
         self.get = function () {
             return OctoPrint.plugins.base.get(OctoPrint.plugins.base.getSimpleApiUrl("buffer_buddy"))
         }
-
-        self.onStartup = self.onUserLoggedIn = self.onUserLoggedOut = function() {
-            window.buffer_buddy = self
+        self.onStartup = self.onUserLoggedIn = self.onUserLoggedOut = self.onEventSettingsUpdated = function() {
             self.requestData()
         }
+
     }
 
     /* view model class, parameters for constructor, container to bind to
