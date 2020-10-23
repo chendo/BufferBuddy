@@ -10,7 +10,7 @@ from octoprint.events import eventManager, Events
 
 ADVANCED_OK = re.compile(r"ok (N(?P<line>\d+) )?P(?P<planner_buffer_avail>\d+) B(?P<command_buffer_avail>\d+)")
 REPORT_INTERVAL = 1 # seconds
-POST_RESEND_WAIT = 2 # seconds
+POST_RESEND_WAIT = 0 # seconds
 INFLIGHT_TARGET_MAX = 45 # Octoprint has a hard limit of 50 entries in the buffer for resends so it must be less than that, with a buffer
 
 class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
@@ -87,9 +87,8 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def get_settings_defaults(self):
 		return dict(
 			enabled=True,
-			enabled_streaming=True,
 			min_cts_interval=0.1,
-			should_report_statistics=True,
+			sd_inflight_target=4,
 		)
 
 	def on_settings_save(self, data):
@@ -99,6 +98,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def apply_settings(self):
 		self.enabled = self._settings.get_boolean(["enabled"])
 		self.min_cts_interval = self._settings.get_float(["min_cts_interval"])
+		self.sd_inflight_target = self._settings.get_int(["sd_inflight_target"])
 
 	##~~ Frontend stuff
 	def send_message(self, type, message):
@@ -164,6 +164,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			planner_buffer_avail = int(matches.group('planner_buffer_avail'))
 			inflight = current_line_number - ok_line_number
 			queue_size = comm._send_queue._qsize()
+			inflight_target = self.sd_inflight_target if comm.isStreaming() else self.inflight_target
 
 			should_report = False
 			should_send = False
@@ -175,9 +176,8 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					self.did_resend = True
 					self.set_status('Resend detected, backing off')
 				self.last_cts = monotonic_time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
-				if inflight > 4:
+				if inflight > 2:
 					self._logger.warn("using a clear to decrease inflight, inflight: {}, line: {}".format(inflight, line))
-					# comm._clear_to_send.clear() # Clear completely to try to reset
 					comm._ok_timeout = monotonic_time() + 0.05 # Reduce the timeout in case we eat too many OKs
 					return None
 
@@ -193,7 +193,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				should_report = True
 
 			if command_buffer_avail > 1: # aim to keep at least one spot free
-				if inflight < self.inflight_target and (monotonic_time() - self.last_cts) > self.min_cts_interval:
+				if inflight < inflight_target and (monotonic_time() - self.last_cts) > self.min_cts_interval:
 					should_send = True
 
 			if should_send and self.enabled:
