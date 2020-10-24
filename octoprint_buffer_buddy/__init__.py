@@ -176,7 +176,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 					self.did_resend = True
 					self.set_status('Resend detected, backing off')
 				self.last_cts = monotonic_time() + POST_RESEND_WAIT # Hack to delay before resuming CTS after resend event to give printer some time to breathe
-				if inflight > 2:
+				if inflight > (inflight_target / 2):
 					self._logger.warn("using a clear to decrease inflight, inflight: {}, line: {}".format(inflight, line))
 					comm._ok_timeout = monotonic_time() + 0.05 # Reduce the timeout in case we eat too many OKs
 					return None
