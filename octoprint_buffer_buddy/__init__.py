@@ -42,7 +42,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.reset_statistics()
 	
 	def on_connecting(self, event, payload):
-		self._logger.info("connect hook")
 		self.command_buffer_size = 0
 		self.planner_buffer_size = 0
 
