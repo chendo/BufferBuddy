@@ -162,9 +162,10 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			current_line_number = comm._current_line
 			command_buffer_avail = int(matches.group('command_buffer_avail'))
 			planner_buffer_avail = int(matches.group('planner_buffer_avail'))
-			inflight = current_line_number - ok_line_number
 			queue_size = comm._send_queue._qsize()
 			inflight_target = self.sd_inflight_target if comm.isStreaming() else self.inflight_target
+			inflight = current_line_number - ok_line_number
+			inflight += comm._clear_to_send._counter # If there's a clear_to_send pending, we need to count it as inflight cause it will be soon
 
 			should_report = False
 			should_send = False
