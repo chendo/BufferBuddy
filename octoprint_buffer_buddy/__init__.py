@@ -240,7 +240,6 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		# core UI here.
 		return dict(
 			js=["js/buffer-buddy.js"],
-			clientjs=["clientjs/buffer-buddy.js"],
 			css=["css/buffer-buddy.css"],
 			less=["less/buffer-buddy.less"]
 		)
