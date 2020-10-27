@@ -4,7 +4,7 @@ BufferBuddy aims to prevent print quality issues when printing over USB with Oct
 
 **WARNING:** This plugin is still considered **experimental and may cause your printer to hard lock**. I am not responsible for any damage this plugin may cause. **You have been warned.**
 
-Some of you may have noticed print quality issues when printing curved lines over USB, which tends to manifests as zits on the surface layer of a print. I personally noticed this when I upgraded to Cura 4.7.1, which has [a bug](https://github.com/Ultimaker/Cura/issues/8321) that generates extremely dense gcode for curves. This can be addressed by printing directly from the SD card, however I like the convenience and flexibility of Octoprint.
+Some of you may have noticed print quality issues when printing curved lines over USB, which tends to manifests as zits on the surface layer of a print. I personally noticed this when I upgraded to Cura 4.7.1, which has [a bug](https://github.com/Ultimaker/Cura/issues/8321) that generates extremely dense gcode for curves (potentially exacerbated by certain printer profiles that incorrectly sets too fine of a resolution, which is due to another bug fixed in 4.7). This can be addressed by printing directly from the SD card, however I like the convenience and flexibility of Octoprint.
 
 This is caused when the planner buffer runs out of instructions during a print, which causes printer movement to stall, however the pressure in the hotend will cause undesired extrusion.
 
