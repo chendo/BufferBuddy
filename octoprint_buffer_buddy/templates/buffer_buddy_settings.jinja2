@@ -8,16 +8,16 @@
 		<div class="controls">
 				<input type="checkbox" data-bind="checked: settings.plugins.buffer_buddy.enabled" title="If enabled, BufferBuddy will try to keep buffers full."/>
         <br />
-        <small>If enabled, BufferBuddy will try to keep buffers full.</small>
+        <small>If enabled, BufferBuddy will try to keep buffers full, otherwise it will monitor buffers only.</small>
 		</div>
 	</div>
   <div class="control-group">
-		<label class="control-label">{{ _('Streaming Inflight Target') }}</label>
+		<label class="control-label">{{ _('Upload to SD Inflight Target') }}</label>
 		<div class="controls">
 			<input type="text" class="input-block-level" data-bind="value: settings.plugins.buffer_buddy.sd_inflight_target"></input>
       <br />
       <small>
-        Specifies how many inflight commands to target. Increasing this will increase streaming speed to SD card, however too high a value will cause buffer overrun issues.
+        Specifies how many inflight commands to target when uploading to SD card. Increasing this will increase speed, however too high a value will cause buffer overrun issues.
         <br />
         If you want to improve SD streaming speed, increase `RX_BUFFER_SIZE` or `USART_RX_BUF_SIZE` depending on your printer.
       </small>
