@@ -92,6 +92,11 @@ $(function() {
             self.requestData()
         }
 
+        self.openSettings = function () {
+            $('a#navbar_show_settings').click()
+            $('li#settings_plugin_buffer_buddy_link a').click()
+        }
+
     }
 
     /* view model class, parameters for constructor, container to bind to

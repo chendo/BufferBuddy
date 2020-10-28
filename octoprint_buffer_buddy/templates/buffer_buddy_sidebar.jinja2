@@ -1,3 +1,4 @@
+
 Status: <strong data-bind="text: status">Starting...</strong> <span data-bind="visible: !enabled()">(disabled)</span>
 <br />
 <div data-bind="visible: advancedOkDetected">
@@ -26,5 +27,11 @@ Status: <strong data-bind="text: status">Starting...</strong> <span data-bind="v
 <div data-bind="visible: !advancedOkDetected()">
   <small class="muted">
     If stuck on Initialising, it is likely due to your printer missing the ADVANCED_OK output format this BufferBuddy requires to function.
+  </small>
+</div>
+
+<div>
+  <small class="muted">
+    <a href="#" title="Open Octolapse Main Settings" data-bind="click: openSettings">Settings</a>
   </small>
 </div>
