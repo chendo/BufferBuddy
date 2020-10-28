@@ -27,9 +27,12 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		
 		self.enabled = False
 
-		self.state = 'ready'
+		self.state = 'initialising'
+
+		self.advanced_ok_detected = False
 
 		self.min_cts_interval = 1.0 
+		self.inflight_target = 0
 
 		eventManager().subscribe(Events.CONNECTING, self.on_connecting)
 		eventManager().subscribe(Events.TRANSFER_STARTED, self.on_transfer_started)
@@ -44,6 +47,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 	def on_connecting(self, event, payload):
 		self.command_buffer_size = 0
 		self.planner_buffer_size = 0
+		self.state = 'detecting'
 
 	def on_transfer_started(self, event, payload):
 		self.reset_statistics()
@@ -71,15 +75,16 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.planner_buffer_size = planner_buffer_size
 		self.command_buffer_size = command_buffer_size
 		self.inflight_target = min(command_buffer_size - 1, INFLIGHT_TARGET_MAX)
+		self.state = 'detected'
+		self.advanced_ok_detected = True
 		self._logger.info("Detected planner buffer size as {}, command buffer size as {}, setting inflight_target to {}".format(planner_buffer_size, command_buffer_size, self.inflight_target))
 		self.send_plugin_state()
-
 
 	##~~ StartupPlugin mixin
 
 	def on_after_startup(self):
 		self.apply_settings()
-		self._logger.info("BufferBuddy ready")
+		self._logger.info("BufferBuddy loaded")
 
 	##~~ SettingsPlugin mixin
 
@@ -116,6 +121,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 			"inflight_target": self.inflight_target,
 			"state": self.state,
 			"enabled": self.enabled,
+			"advanced_ok_detected": self.advanced_ok_detected,
 		}
 
 	def on_api_get(self, request):
@@ -229,7 +235,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				})
 				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
 				self.last_report = monotonic_time()
-				self.set_status('Monitoring')
+				self.set_status('Active')
 
 		return line
 

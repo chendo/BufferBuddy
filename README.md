@@ -1,8 +1,10 @@
 # BufferBuddy
 
-BufferBuddy aims to prevent print quality issues when printing over USB with Octoprint. Designed for Marlin, but may work for other firmwares.
+BufferBuddy aims to prevent print quality issues when printing over USB with Octoprint. Designed for Marlin with `ADVANCED_OK` support, but may work for other firmwares that also support `ADVANCED_OK` output.
 
 **WARNING:** This plugin is still considered **experimental and may cause your printer to hard lock**. I am not responsible for any damage this plugin may cause. **You have been warned.**
+
+Please ensure you read the Requirements section below. This plugin requires `ADVANCED_OK` to function.
 
 Some of you may have noticed print quality issues when printing curved lines over USB, which tends to manifests as zits on the surface layer of a print. I personally noticed this when I upgraded to Cura 4.7.1, which has [a bug](https://github.com/Ultimaker/Cura/issues/8321) that generates extremely dense gcode for curves (potentially exacerbated by certain printer profiles that incorrectly sets too fine of a resolution, which is due to another bug fixed in 4.7). This can be addressed by printing directly from the SD card, however I like the convenience and flexibility of Octoprint.
 
@@ -50,7 +52,7 @@ It cannot make your printer process more commands than the processor is capable 
 
 ## Requirements
 
-* Marlin 2.x, with `ADVANCED_OK` support.
+* Marlin 2.x, with `ADVANCED_OK` support, as per defined in `Configuration_adv.h`
     * It's important that you also change `TX_BUFFER_SIZE` or `USART_TX_BUF_SIZE` depending on your configuration to at least `32` as `ADVANCED_OK` sends more data.
     * This plugin is more effective with a higher `BUFSIZE`. The default of `4` is generally not enough for this plugin to be useful.
 

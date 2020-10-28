@@ -11,28 +11,27 @@ $(function() {
         // assign the injected parameters, e.g.:
         self.settingsViewModel = parameters[0];
 
-        // TODO: Implement your plugin's view model here.
-
-        self.status = ko.observable('Ready')
-        self.state = ko.observable('ready')
+        self.status = ko.observable('Initialising...')
+        self.state = ko.observable('initialising')
         self.enabled = ko.observable(false)
+        self.advancedOkDetected = ko.observable(false)
 
-        self.plannerBufferSize = ko.observable('?')
-        self.commandBufferSize = ko.observable('?')
-        self.inflightTarget       = ko.observable('?')
+        self.plannerBufferSize = ko.observable('0')
+        self.commandBufferSize = ko.observable('0')
+        self.inflightTarget       = ko.observable('0')
 
-        self.commandBufferAvail = ko.observable('?')
-        self.commandUnderrunsDetected = ko.observable('?')
+        self.commandBufferAvail = ko.observable('0')
+        self.commandUnderrunsDetected = ko.observable('0')
 
-        self.plannerBufferAvail = ko.observable('?')
-        self.plannerUnderrunsDetected = ko.observable('?')
-        self.ctsTriggered = ko.observable('?')
+        self.plannerBufferAvail = ko.observable('0')
+        self.plannerUnderrunsDetected = ko.observable('0')
+        self.ctsTriggered = ko.observable('0')
 
-        self.currentLineNumber = ko.observable('?')
-        self.ackedLineNumber = ko.observable('?')
-        self.inflight = ko.observable('?')
-        self.resendsDetected = ko.observable('?')
-        self.sendQueueSize = ko.observable('?')
+        self.currentLineNumber = ko.observable('0')
+        self.ackedLineNumber = ko.observable('0')
+        self.inflight = ko.observable('0')
+        self.resendsDetected = ko.observable('0')
+        self.sendQueueSize = ko.observable('0')
 
         self.onDataUpdaterPluginMessage = function (plugin, data) {
             if (plugin !== "buffer_buddy") {
@@ -55,9 +54,10 @@ $(function() {
                 self.inflight(message.inflight.toString())
                 self.resendsDetected(message.resends_detected.toString())
                 self.sendQueueSize(message.send_queue_size.toString())
+
             } else if (type == 'status') { 
                 self.status(message)
-            } else if (type ==  'state') {
+            } else if (type == 'state') {
                 self.setState(message)
             }
         }
@@ -73,10 +73,15 @@ $(function() {
 
         self.setState = function (config) {
             self.enabled(config.enabled)
+            self.advancedOkDetected(config.advanced_ok_detected)
             self.state(config.state)
             self.plannerBufferSize(config.planner_buffer_size.toString())
             self.commandBufferSize(config.command_buffer_size.toString())
             self.inflightTarget(config.inflight_target.toString())
+
+            if (config.advanced_ok_detected) {
+                self.status('Ready')
+            }
         }
 
         self.get = function () {

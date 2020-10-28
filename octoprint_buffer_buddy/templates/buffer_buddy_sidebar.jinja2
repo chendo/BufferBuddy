@@ -1,22 +1,30 @@
-Status: <strong data-bind="text: status">Initialising...</strong> <span data-bind="visible: !enabled()">(disabled)</span>
+Status: <strong data-bind="text: status">Starting...</strong> <span data-bind="visible: !enabled()">(disabled)</span>
 <br />
-Line: <strong><span data-bind="text: currentLineNumber">_</span> sent / <span data-bind="text: ackedLineNumber">_</span> acked</strong>
-<br />
-Commands inflight: <strong><span data-bind="text: inflight">_</span> / <span data-bind="text: inflightTarget">_</span> target</strong>
-<br />
-Sends triggered: <strong><span data-bind="text: ctsTriggered">_</span></strong>
-<br />
-Planner buffers: <strong><span data-bind="text: plannerBufferAvail">_</span> free / <span data-bind="text: plannerBufferSize">_</span> max</strong>
-<br />
-Underruns: <strong><span data-bind="text: plannerUnderrunsDetected">_</span> underruns detected</span></strong>
-<br />
-Command buffers: <strong><span data-bind="text: commandBufferAvail">_</span> free / <span data-bind="text: commandBufferSize">_</span> max</strong>
-<br />
-Underruns: <strong><span data-bind="text: commandUnderrunsDetected">_</span> underruns detected</span></strong>
-<br />
-Resends detected: <strong><span data-bind="text: resendsDetected">_</span></strong>
-<br />
-<small class="muted">
-  Stats are reset on the start of each print. <br />
-  It's normal to see underruns detected at the start of the print where non-G0/G1 commands are sent.
-</small>
+<div data-bind="visible: advancedOkDetected">
+  Line: <strong><span data-bind="text: currentLineNumber">_</span> sent / <span data-bind="text: ackedLineNumber">_</span> acked</strong>
+  <br />
+  Commands inflight: <strong><span data-bind="text: inflight">_</span> / <span data-bind="text: inflightTarget">_</span> target</strong>
+  <br />
+  Sends triggered: <strong><span data-bind="text: ctsTriggered">_</span></strong>
+  <br />
+  Planner buffers: <strong><span data-bind="text: plannerBufferAvail">_</span> free / <span data-bind="text: plannerBufferSize">_</span> max</strong>
+  <br />
+  Underruns: <strong><span data-bind="text: plannerUnderrunsDetected">_</span> underruns detected</span></strong>
+  <br />
+  Command buffers: <strong><span data-bind="text: commandBufferAvail">_</span> free / <span data-bind="text: commandBufferSize">_</span> max</strong>
+  <br />
+  Underruns: <strong><span data-bind="text: commandUnderrunsDetected">_</span> underruns detected</span></strong>
+  <br />
+  Resends detected: <strong><span data-bind="text: resendsDetected">_</span></strong>
+  <br />
+  <small class="muted">
+    Stats are reset on the start of each print. <br />
+    It's normal to see underruns detected at the start of the print where non-G0/G1 commands are sent.
+  </small>
+</div>
+
+<div data-bind="visible: !advancedOkDetected()">
+  <small class="muted">
+    If stuck on Initialising, it is likely due to your printer missing the ADVANCED_OK output format this BufferBuddy requires to function.
+  </small>
+</div>
