@@ -25,6 +25,7 @@ $(function() {
 
         self.plannerBufferAvail = ko.observable('0')
         self.plannerUnderrunsDetected = ko.observable('0')
+
         self.ctsTriggered = ko.observable('0')
 
         self.currentLineNumber = ko.observable('0')

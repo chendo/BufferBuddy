@@ -235,7 +235,10 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 				})
 				self._logger.debug("current line: {} ok line: {} buffer avail: {} inflight: {} cts: {} cts_max: {} queue: {}".format(current_line_number, ok_line_number, command_buffer_avail, inflight, comm._clear_to_send._counter, comm._clear_to_send._max, queue_size))
 				self.last_report = monotonic_time()
-				self.set_status('Active')
+				if self.enabled:
+					self.set_status('Active')
+				else:
+					self.set_status('Monitoring')
 
 		return line
 
