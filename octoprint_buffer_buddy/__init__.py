@@ -35,6 +35,7 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.inflight_target = 0
 
 		eventManager().subscribe(Events.CONNECTING, self.on_connecting)
+		eventManager().subscribe(Events.DISCONNECTED, self.on_disconnected)
 		eventManager().subscribe(Events.TRANSFER_STARTED, self.on_transfer_started)
 		eventManager().subscribe(Events.TRANSFER_DONE, self.on_print_finish)
 		eventManager().subscribe(Events.TRANSFER_FAILED, self.on_print_finish)
@@ -48,6 +49,13 @@ class BufferBuddyPlugin(octoprint.plugin.SettingsPlugin,
 		self.command_buffer_size = 0
 		self.planner_buffer_size = 0
 		self.state = 'detecting'
+
+	def on_disconnected(self, event, payload):
+		self.command_buffer_size = 0
+		self.planner_buffer_size = 0
+		self.state = 'disconnected'
+		self.set_status('Disconnected')
+		self.send_plugin_state()
 
 	def on_transfer_started(self, event, payload):
 		self.reset_statistics()
