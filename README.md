@@ -58,13 +58,17 @@ It cannot make your printer process more commands than the processor is capable 
 
 ## Tested with
 
-This plugin has only been tested with my Ender 3 v2 running [Smith3D's Marlin fork](https://github.com/smith3d/Marlin/tree/bugfix-2.0.x-Smith3D) which includes improvements specifically for the Ender 3 v2, but should work for any Marlin 2.x firmware with the appropriate configuration.
+This plugin has been tested with my Ender 3 v2 running [Smith3D's Marlin fork](https://github.com/smith3d/Marlin/tree/bugfix-2.0.x-Smith3D) which includes improvements specifically for the Ender 3 v2, but should work for any Marlin 2.x firmware with the appropriate configuration.
 
 If you have had success with other printers, please send a pull request and add the details below.
 
 * Ender 3 v2, Marlin-Smith3D 2.0.x-13: `BUFSIZE=16, BLOCK_BUFFER_SIZE=16, USART_RX_BUF_SIZE=64, USART_TX_BUF_SIZE=64`
 * Ender 5, SKR Dip Board, Marlin 2.0.7.1: https://twitter.com/RobbertMuller/status/1321336649050193920
 * ANET A8 Marlin 2.0.7.2 `BUFSIZE=8, BLOCK_BUFFER_SIZE=32, TX_BUFFER_SIZE=64, EMERGENCY_PARSER, ADVANCED_OK`
+
+## Plugins
+
+* Octolapse: BufferBuddy works with Octolapse, but take note that a `M400` is sent before snapshot, so the buffers need to be refilled after the snapshot.
 
 ## Setup
 
